@@ -14,14 +14,38 @@ var ignoreFiles = map[string]interface{}{
 	".gitignore": nil,
 }
 
-var lvl = -1
+func getLevel(path string) int {
+	return strings.Count(path, "/")
+}
 
 func dirTree(out io.Writer, path string, printFiles bool) error {
+	prefix := "├───"
+	lastfix := "└───"
 
-	lvl++
-	files, _ := os.ReadDir(path)
 
-	for pos, file := range files {
+	var dirs []os.DirEntry
+	var files []os.DirEntry
+
+	entries, _ := os.ReadDir(path)
+	for _, ent := range entries {
+		if ent.IsDir() {
+			dirs = append(dirs, ent)
+		}
+		files = append(files, ent)
+	}
+
+	var allFiles []os.DirEntry
+	if printFiles {
+		allFiles = entries
+	} else {
+		allFiles = dirs
+	}
+
+
+	tabsCount := getLevel(path)
+
+
+	for pos, file := range entries {
 		fileInfo, _ := file.Info()
 
 		// Доп функция
@@ -31,15 +55,17 @@ func dirTree(out io.Writer, path string, printFiles bool) error {
 			continue
 		}
 
-		if lvl != 0 {
-			fmt.Fprintf(out, "%s", strings.Repeat("│\t", lvl))
+
+		if tabsCount != 0 {
+			fmt.Fprintf(out, "│%s", strings.Repeat("\t", tabsCount))
 		}
+
 
 		if !file.IsDir() && printFiles {
 			if pos == len(files)-1 {
-				fmt.Fprintf(out, "└───")
+				fmt.Fprintf(out, lastfix)
 			} else {
-				fmt.Fprintf(out, "├───")
+				fmt.Fprintf(out, prefix)
 			}
 
 			fileSize := strconv.FormatInt(fileInfo.Size(), 10) + "b"
@@ -49,21 +75,21 @@ func dirTree(out io.Writer, path string, printFiles bool) error {
 			fmt.Fprintf(out, "%s (%s)\n", file.Name(), fileSize)
 		}
 
-		if file.IsDir() {
-			if file.Name() == files[len(files)-2].Name() || pos == len(files)-1 {
-				fmt.Fprintf(out, "└───")
+		if file.IsDir(){
+
+			if file.Name() == allFiles[len(allFiles)-1].Name() || pos == len(files)-1 {
+				fmt.Fprintf(out,"%s%s\n", lastfix, file.Name())
 			} else {
-				fmt.Fprintf(out, "├───")
+				fmt.Fprintf(out,"%s%s\n",prefix, file.Name())
 			}
 
-			fmt.Fprintf(out, "%s\n", file.Name())
 
-			subPath := fmt.Sprintf("%s/%s", path, file.Name())
-			_ = dirTree(out, subPath, printFiles)
+
 		}
+		subPath := fmt.Sprintf("%s/%s", path, file.Name())
+		_ = dirTree(out, subPath, printFiles)
 
 	}
-	lvl--
 	return nil
 }
 
