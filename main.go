@@ -14,14 +14,84 @@ var ignoreFiles = map[string]interface{}{
 	".gitignore": nil,
 }
 
+func combineFilesDirs(path string) ([]os.DirEntry, []os.DirEntry) {
+	var dirs []os.DirEntry
+	var files []os.DirEntry
+
+	entries,_ := os.ReadDir(path)
+
+	for _, ent := range entries {
+		if ent.IsDir() {
+			dirs = append(dirs, ent)
+		} else {
+			files = append(files, ent)
+		}
+	}
+
+	return dirs, files
+
+
+}
+
 func getLevel(path string) int {
 	return strings.Count(path, "/")
+}
+
+func isBaseFolderLast(path string) bool{
+	if !strings.Contains(path,"/") {
+		return false
+	}
+
+	basePath := strings.SplitAfterN(path,"/", 100)[0]
+	basePath = strings.TrimSuffix(basePath, "/")
+
+
+	subBasePath := strings.SplitAfterN(path,"/", 100)[1]
+	subBasePath = strings.TrimSuffix(subBasePath, "/")
+
+	dirs, _ := combineFilesDirs(basePath)
+	return subBasePath==dirs[len(dirs)-1].Name()
+}
+
+
+
+func isPrevFolderLast(path string) bool {
+	var dirs []os.DirEntry
+	var files []os.DirEntry
+	var cuttedPath, upFolder string
+
+	counteSplitters := strings.Count(path, "/")
+	if counteSplitters == 0 {
+		cuttedPath = path
+	} else if counteSplitters == 1 {
+		cuttedPath = strings.SplitAfterN(path, "/", counteSplitters)[0]
+	} else {
+
+		cuttedPathParts := strings.Split(path, "/")
+		upFolder = cuttedPathParts[len(cuttedPathParts)-1]
+		for i := 0; i <= counteSplitters-1; i++ {
+			cuttedPath += cuttedPathParts[i] + "/"
+		}
+
+	}
+
+	dirs, files = combineFilesDirs(cuttedPath)
+
+	if len(dirs) == 1 {
+		return true
+	} else if upFolder == dirs[len(dirs)-1].Name() {
+		return true
+	} else if upFolder == files[len(files)-1].Name() {
+		return true
+	} else {
+		return false
+	}
+
 }
 
 func dirTree(out io.Writer, path string, printFiles bool) error {
 	prefix := "├───"
 	lastfix := "└───"
-
 
 	var dirs []os.DirEntry
 	var files []os.DirEntry
@@ -41,11 +111,15 @@ func dirTree(out io.Writer, path string, printFiles bool) error {
 		allFiles = dirs
 	}
 
-
 	tabsCount := getLevel(path)
 
 
+
 	for pos, file := range entries {
+
+
+		isBaseFolderLast(path)
+
 		fileInfo, _ := file.Info()
 
 		// Доп функция
@@ -55,11 +129,15 @@ func dirTree(out io.Writer, path string, printFiles bool) error {
 			continue
 		}
 
+		prevFolder := isPrevFolderLast(path)
 
-		if tabsCount != 0 {
+		if tabsCount != 0 && !prevFolder {
+			fmt.Fprintf(out, "%s", strings.Repeat("│\t", tabsCount))
+		} else if isBaseFolderLast(path){
+			fmt.Fprintf(out, "%s", strings.Repeat("\t", tabsCount))
+		} else if tabsCount!=0 {
 			fmt.Fprintf(out, "│%s", strings.Repeat("\t", tabsCount))
 		}
-
 
 		if !file.IsDir() && printFiles {
 			if pos == len(files)-1 {
@@ -75,15 +153,14 @@ func dirTree(out io.Writer, path string, printFiles bool) error {
 			fmt.Fprintf(out, "%s (%s)\n", file.Name(), fileSize)
 		}
 
-		if file.IsDir(){
+		if file.IsDir() {
 
 			if file.Name() == allFiles[len(allFiles)-1].Name() || pos == len(files)-1 {
-				fmt.Fprintf(out,"%s%s\n", lastfix, file.Name())
+				fmt.Fprintf(out, "%s%s\n", lastfix, file.Name())
 			} else {
-				fmt.Fprintf(out,"%s%s\n",prefix, file.Name())
+
+				fmt.Fprintf(out, "%s%s\n", prefix, file.Name())
 			}
-
-
 
 		}
 		subPath := fmt.Sprintf("%s/%s", path, file.Name())
